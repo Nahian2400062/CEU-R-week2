@@ -99,8 +99,7 @@ ggplot(dta, aes(stars, V1)) + geom_point()
 ggplot(dta, aes(factor(stars), V1)) + geom_point() + xlab("Number of Stars")
 
 ## TODO dataviz on avg per nights per stars split by country (facet)
-dta <- hotels[!is.na(stars), weighted.mean(price_per_night, bookings), by = .(stars, country)]
-[order(stars)]
+dta <- hotels[!is.na(stars), weighted.mean(price_per_night, bookings), by = .(stars, country)][order(stars)]
 ggplot(dta, aes(factor(stars), V1)) + geom_point() + xlab("Number of Stars") + 
   facet_wrap(~country, scales = "free")
 
@@ -114,4 +113,108 @@ countries[ratings > mean(ratings, na.rm = TRUE)]
 
 
 ## THIRD SESSION
+countries[ratings > mean(ratings, na.rm = TRUE)]
 
+hotels[, pricecat := cut(price_per_night, 3)]
+hotels[, .N, by = pricecat]
+
+hotels[, pricecat := cut(price_per_night, c(0, 100, 250, Inf), labels = c("cheap", "avg", "expensive"))]
+hotels[, .N, by = pricecat]
+
+?quantile
+quantile(hotels$price_per_night, c(1/3, 2/3))
+lower <- quantile(hotels$price_per_night, 1/3)
+upper <- quantile(hotels$price_per_night, 2/3)
+hotels[, pricecat := cut(price_per_night, c(0, lower, upper, Inf), 
+                         labels = c("cheap", "avg", "expensive"))]
+hotels[, pricecat := cut(price_per_night, c(0, quantile(price_per_night, c(1/3, 2/3)), Inf), 
+                         labels = c("cheap", "avg", "expensive"))]
+hotels[, .N, by = pricecat]
+
+
+hotels[, lower := quantile(price_per_night, 1/3), by = country]
+hotels[, upper := quantile(price_per_night, 1/3), by = country]
+rm(lower)
+rm(upper) 
+hotels[, pricecat := cut(price_per_night, c(0, lower[1], upper[1], Inf), 
+                                       labels = c("cheap", "avg", "expensive")), by = country]
+
+cut(hotels[country == "Netherlands", price_per_night], c(0, lower[1], upper[1], Inf))
+hotels[upper != lower, pricecat := cut(price_per_night, c(0, lower[1], upper[1], Inf), 
+                                       labels = c("cheap","avg","expensive")), by = country]
+hotels[upper != lower, .(0, lower[1], upper[1], Inf), by = country]
+
+hotels[, pricecat := NULL]
+hotels[upper != lower, pricecat := cut(price_per_night, c(0, lower[1], upper[1], Inf), 
+                                       labels = c("cheap", "avg", "expensive")), by = country]
+
+## TODO data.table with x (1:100), y(1:100), color columns (red/white)
+# Flag of Japan
+points <- data.table(x = rep(1:100, 100), y = rep(1:100, each = 100), col = "white")
+
+points <- data.table(x = rep(1:100, 100), y = rep(1:100, each = 100), col = "white")
+points[(x - 50)^2 + (y - 50)^2 < 50, col := "red"]
+points[, .N, by = col]
+
+library(ggplot2)
+ggplot(points, aes(x, y, color = col)) + geom_point() + theme_void() + 
+  scale_color_manual(values = c("red", "white")) + theme(legend.position = "none")
+
+## TODO model: col ~ x +y
+
+?lm
+fit <- lm(col ~ x + y, data = points)
+
+points[, col := factor(col)]
+fit <- glm(col ~ x + y, data = points, family = binomial(link = logit))
+summary(fit)
+
+predict(fit, type = "response")
+points$pred <- predict(fit, type = "response")
+ggplot(points, aes(x, y, color = factor(round(pred)))) + geom_point() + theme_void() + 
+  scale_color_manual(values = c("red", "white")) + theme(legend.position = "none")
+
+library(rpart)
+fit <- rpart(col ~ x + y, points)
+fit
+
+plot(fit)
+text(fit)
+
+?rpart
+
+fit <- rpart(col ~ x + y, points, control = rpart.control(minsplit = 1, cp = 0))
+
+points$pred <- predict(fit, type = "class")
+ggplot(points, aes(x, y, color = pred)) + geom_tile() + theme_void() + 
+  scale_color_manual(values = c("red", "white")) + theme(legend.position = "none")
+ggplot(points, aes(x, y, fill = pred)) + geom_tile() + theme_void() +
+  scale_fill_manual(values = c("red", "white")) +
+  theme(legend.position = 'none') 
+ggplot(points, aes(x, y)) + 
+  geom_tile(aes(fill = pred)) + 
+  geom_tile(aes(fill = col), alpha = 0.5) + theme_void() +
+  scale_fill_manual(values = c("red", "white")) +
+  theme(legend.position = 'none')
+
+library(partykit)
+plot(as.party(fit))
+
+?rpart
+
+fit <- rpart(col ~ x + y, points, control = ...)
+
+
+?ctree
+
+library(randomForest)
+#h2o
+
+fit <- randomForest(col ~ x + y, points)
+
+points$pred <- predict(fit, type = "class")
+ggplot(points, aes(x, y)) + 
+  geom_tile(aes(fill = pred)) + 
+  geom_tile(aes(fill = col), alpha = 0.5) + theme_void() +
+  scale_fill_manual(values = c("red", "white")) +
+  theme(legend.position = 'none')
